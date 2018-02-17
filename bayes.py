@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
+import os
 import datetime
+import random
 # maffs
 import scipy.optimize as spo
 import scipy.integrate as integrate
@@ -16,22 +18,33 @@ class Prediction:
     def __init__(self, beta0):
         
         self.beta0 = beta0
+        self.registration_start = '2018-02-01'
+        self.registration_end = '2018-04-02'
+
+        self._generate_fake_data()
         self.data = pd.read_csv('registrations.csv')
         self._clean_data()
 
-        self.registration_start = '2018-02-01'
-        self.registration_end = '2018-04-01'
         self._extract_info()
 
     def _clean_data(self):
 
         self.data = self.data[self.data.Name != 'Miha Zgubic']
 
+    def _generate_fake_data(self):
+
+        data = pd.DataFrame()
+        n_app = 30
+        data['Name'] = ['Name' for i in range(n_app)]
+        data['Registration date'] = [pd.to_datetime(self.registration_start)+datetime.timedelta(random.randint(1,30)) for i in range(n_app)]
+        data.to_csv('registrations.csv')
+        
+
     def _extract_info(self):
 
         # handle the registrations
         self.data.index = pd.DatetimeIndex(self.data['Registration date'])
-        self.regs = self.data.groupby(self.data.index.date).count()['ID']
+        self.regs = self.data.groupby(self.data.index.date).count()['Name']
         self.regs.index = pd.DatetimeIndex(self.regs.index)
 
         # reindex to fill no registration days
@@ -119,33 +132,40 @@ class Prediction:
         ax[0].fill_between(date, pred_1_down, pred_1_up, label='1 sigma uncertainty band', alpha=0.5,
         facecolor='C0')
 
-        xs = np.linspace(0, 5, 100)
-        alpha = self.alphas.get(upto)
-        beta = self.alphas.get(upto)
-        pdf = beta**alpha / factorial(alpha-1) * xs**(alpha-1) * np.e**(-beta*xs)
-        ax[1].plot(xs, pdf)
-
         # legend and cosmetics
         ax[0].legend(loc='best')
         ax[0].set_xlim(pd.to_datetime(self.registration_start), pd.to_datetime(self.registration_end))
         ax[0].set_title('Prediction for total number of MLHEP applications')
         ax[1].set_title('Posterior pdf for mean number of applicants per day')
-
         plt.sca(ax[0])
         plt.xticks(rotation=30)
 
-        plt.savefig('{date}.pdf'.format(date=upto))
-        #plt.show()        
+        # pdf main
+        daterange = pd.date_range(pd.to_datetime(self.registration_start), upto)
+        xs = np.linspace(0, 5, 100)
+        cm = plt.get_cmap('cool')
+        ax[1].set_color_cycle([cm(1.*i/len(daterange)) for i in range(len(daterange))])
+        for day in daterange:
+            alpha = self.alphas.get(day)
+            beta = self.betas.get(day)
+            pdf = beta**alpha / factorial(alpha-1) * xs**(alpha-1) * np.e**(-beta*xs)
+            ax[1].plot(xs, pdf)
 
+        plt.savefig('plots/{date}.pdf'.format(date=upto.date()))
 
 def main():
     print('im so bayesian')
     
     shaman = Prediction(0.01)
     shaman.compute_predictions()
-    for date in pd.date_range('2018-02-01', '2018-02-11'):
+    for date in pd.date_range('2018-02-01', datetime.date.today()):
+        print('plotting for ', date)
         shaman.plot_predictions(date)
 
+    # use imagemagick to make the gif
+    os.system('convert -delay 40 -resize 1200x800 -loop 0 plots/*.pdf plots/animated.gif')
+
+    
 
 if __name__ == '__main__':
     main()
