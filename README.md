@@ -5,4 +5,4 @@ Based on a dodgy assumption that the number of registrations per day is well mod
 
 Generate a dummy csv file containing registrations to your event, or use your own data.
 
-![Screenshot](plots/2018-02-17.pdf)
+![alt text](plots/2018-02-17.png "Description goes here")
